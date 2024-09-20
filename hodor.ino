@@ -1,22 +1,16 @@
 #include <SPI.h>
 #include <WiFiNINA.h>
-
-///////please enter your sensitive data in the Secret tab/arduino_secrets.h
-char ssid[] = "";             // your network SSID (name)
-char pass[] = "";  // your network password (use for WPA, or use as key for WEP)
-int keyIndex = 0;                  // your network key index number (needed only for WEP)
+#include "secrets.h"
 
 int status = WL_IDLE_STATUS;
 WiFiServer server(80);
 
 void setup() {
-  // pinMode(LEDR, OUTPUT);
-  // pinMode(LEDG, OUTPUT);
-  // pinMode(LEDB, OUTPUT);
-  pinMode(13, OUTPUT);
   Serial.begin(115200);  // initialize serial communication
-  // check for the WiFi module:
 
+  pinMode(13, OUTPUT);
+
+  // check for the WiFi module:
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("Communication with WiFi module failed!");
     // don't continue
@@ -62,30 +56,8 @@ void loop() {
             // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
             // and a content-type so the client knows what's coming, then a blank line:
             client.println("HTTP/1.1 200 OK");
-            client.println("Content-type:text/html");
+            // End the response with two newlines.
             client.println();
-
-            // the content of the HTTP response follows the header:
-            client.print("<style>");
-            client.print(".container {margin: 0 auto; text-align: center; margin-top: 100px;}");
-            client.print("button {color: white; width: 100px; height: 100px;");
-            client.print("border-radius: 50%; margin: 20px; border: none; font-size: 20px; outline: none; transition: all 0.2s;}");
-            client.print(".red{background-color: rgb(196, 39, 39);}");
-            client.print(".green{background-color: rgb(39, 121, 39);}");
-            client.print(".blue {background-color: rgb(5, 87, 180);}");
-            client.print(".off{background-color: grey;}");
-            client.print("button:hover{cursor: pointer; opacity: 0.7;}");
-            client.print("</style>");
-            client.print("<div class='container'>");
-            client.print("<button class='red' type='submit' onmousedown='location.href=\"/RH\"'>ON</button>");
-            client.print("<button class='off' type='submit' onmousedown='location.href=\"/RL\"'>OFF</button><br>");
-            client.print("<button class='green' type='submit' onmousedown='location.href=\"/GH\"'>ON</button>");
-            client.print("<button class='off' type='submit' onmousedown='location.href=\"/GL\"'>OFF</button><br>");
-            client.print("<button class='blue' type='submit' onmousedown='location.href=\"/BH\"'>ON</button>");
-            client.print("<button class='off' type='submit' onmousedown='location.href=\"/BL\"'>OFF</button>");
-            client.print("</div>");
-
-            // The HTTP response ends with another blank line:
             client.println();
             // break out of the while loop:
             break;
@@ -96,26 +68,8 @@ void loop() {
           currentLine += c;      // add it to the end of the currentLine
         }
 
-        // Check to see if the client request was /X
-        if (currentLine.endsWith("GET /RH")) {
-          digitalWrite(LEDR, HIGH);
-        }
-        if (currentLine.endsWith("GET /RL")) {
-          digitalWrite(LEDR, LOW);
-        }
-        if (currentLine.endsWith("GET /GH")) {
-          digitalWrite(LEDG, HIGH);
-        }
-        if (currentLine.endsWith("GET /GL")) {
-          digitalWrite(LEDG, LOW);
-        }
-        if (currentLine.endsWith("GET /BH")) {
-          digitalWrite(LEDB, HIGH);
-        }
-        if (currentLine.endsWith("GET /BL")) {
-          digitalWrite(LEDB, LOW);
-        }
-        if (currentLine.endsWith("GET /LED")) {
+
+        if (currentLine.endsWith(strcat("GET /", secretKey))) {
           digitalWrite(13, HIGH);
           delay(2500);
           digitalWrite(13, LOW);
@@ -145,5 +99,6 @@ void printWifiStatus() {
   Serial.println(" dBm");
   // print where to go in a browser:
   Serial.print("To see this page in action, open a browser to http://");
-  Serial.println(ip);
+  Serial.print(ip);
+  Serial.println(strcat("/", secretKey));
 }
