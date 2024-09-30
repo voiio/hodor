@@ -1,104 +1,90 @@
-#include <SPI.h>
-#include <WiFiNINA.h>
+#include <WiFi.h>
 #include "secrets.h"
 
-int status = WL_IDLE_STATUS;
 WiFiServer server(80);
+String header;
+const int DOOR_PIN = D10;
+// How long the latch signal will be send to the controller in ms.
+const long LATCH_TIME = 100;
+// Request timeout in ms.
+const long TIMEOUT = 2000;
+unsigned long currentTime = millis();
+unsigned long previousTime = 0;
+
 
 void setup() {
-  Serial.begin(115200);  // initialize serial communication
-
-  pinMode(13, OUTPUT);
-
-  // check for the WiFi module:
-  if (WiFi.status() == WL_NO_MODULE) {
-    Serial.println("Communication with WiFi module failed!");
-    // don't continue
-    while (true)
-      ;
-  }
-
-  String fv = WiFi.firmwareVersion();
-  if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
-    Serial.println("Please upgrade the firmware");
-  }
-
-  // attempt to connect to WiFi network:
-  while (status != WL_CONNECTED) {
-    Serial.print("Attempting to connect to Network named: ");
-    Serial.println(ssid);  // print the network name (SSID);
-
-    // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
-    status = WiFi.begin(ssid, pass);
-    // wait 10 seconds for connection:
-    delay(10000);
-  }
-  server.begin();     // start the web server on port 80
-  printWifiStatus();  // you're connected now, so print out the status
+  Serial.begin(115200);
+  pinMode(DOOR_PIN, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
+  initWiFi();
+  server.begin();
 }
 
 
 void loop() {
   WiFiClient client = server.available();  // listen for incoming clients
 
-  if (client) {                    // if you get a client,
-    Serial.println("new client");  // print a message out the serial port
-    String currentLine = "";       // make a String to hold incoming data from the client
-    while (client.connected()) {   // loop while the client's connected
-      if (client.available()) {    // if there's bytes to read from the client,
-        char c = client.read();    // read a byte, then
-        Serial.write(c);           // print it out the serial monitor
-        if (c == '\n') {           // if the byte is a newline character
-
+  if (client) {  // If a new client connects,
+    currentTime = millis();
+    previousTime = currentTime;
+    Serial.println("New Client.");                                             // print a message out in the serial port
+    String currentLine = "";                                                   // make a String to hold incoming data from the client
+    while (client.connected() && currentTime - previousTime <= TIMEOUT) {  // loop while the client's connected
+      currentTime = millis();
+      if (client.available()) {  // if there's bytes to read from the client,
+        char c = client.read();  // read a byte, then
+        Serial.write(c);         // print it out the serial monitor
+        header += c;
+        if (c == '\n') {  // if the byte is a newline character
           // if the current line is blank, you got two newline characters in a row.
           // that's the end of the client HTTP request, so send a response:
           if (currentLine.length() == 0) {
             // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
             // and a content-type so the client knows what's coming, then a blank line:
             client.println("HTTP/1.1 200 OK");
-            // End the response with two newlines.
+            client.println("Content-type:text/html");
+            client.println("Connection: close");
             client.println();
+            if (header.indexOf("GET /" + secretKey) >= 0) {
+              Serial.println("HODOR!");
+              digitalWrite(LED_BUILTIN, HIGH);
+              digitalWrite(DOOR_PIN, HIGH);
+              delay(LATCH_TIME);
+              digitalWrite(DOOR_PIN, LOW);
+              digitalWrite(LED_BUILTIN, LOW);
+            }
+            // The HTTP response ends with another blank line
             client.println();
-            // break out of the while loop:
+            // Break out of the while loop
             break;
-          } else {  // if you got a newline, then clear currentLine:
+          } else {  // if you got a newline, then clear currentLine
             currentLine = "";
           }
         } else if (c != '\r') {  // if you got anything else but a carriage return character,
           currentLine += c;      // add it to the end of the currentLine
         }
-
-
-        if (currentLine.endsWith(strcat("GET /", secretKey))) {
-          digitalWrite(13, HIGH);
-          delay(2500);
-          digitalWrite(13, LOW);
-        }
       }
     }
-    // close the connection:
+    // Clear the header variable
+    header = "";
+    // Close the connection
     client.stop();
-    Serial.println("client disconnected");
+    Serial.println("Client disconnected.");
+    Serial.println("");
   }
 }
 
-void printWifiStatus() {
-  // print the SSID of the network you're attached to:
-  Serial.print("SSID: ");
-  Serial.println(WiFi.SSID());
-
-  // print your board's IP address:
-  IPAddress ip = WiFi.localIP();
-  Serial.print("IP Address: ");
-  Serial.println(ip);
-
-  // print the received signal strength:
-  long rssi = WiFi.RSSI();
-  Serial.print("signal strength (RSSI):");
-  Serial.print(rssi);
-  Serial.println(" dBm");
-  // print where to go in a browser:
-  Serial.print("To see this page in action, open a browser to http://");
-  Serial.print(ip);
-  Serial.println(strcat("/", secretKey));
+void initWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi ..");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print('.');
+    delay(1000);
+  }
+  Serial.println(" Done!");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("RRSI: ");
+  Serial.println(WiFi.RSSI());
 }
