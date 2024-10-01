@@ -22,13 +22,15 @@ void setup() {
 
 
 void loop() {
+  digitalWrite(LED_BUILTIN, HIGH);
+  keepAliveWiFi();
   WiFiClient client = server.available();  // listen for incoming clients
 
   if (client) {  // If a new client connects,
     currentTime = millis();
     previousTime = currentTime;
-    Serial.println("New Client.");                                             // print a message out in the serial port
-    String currentLine = "";                                                   // make a String to hold incoming data from the client
+    Serial.println("New Client.");                                         // print a message out in the serial port
+    String currentLine = "";                                               // make a String to hold incoming data from the client
     while (client.connected() && currentTime - previousTime <= TIMEOUT) {  // loop while the client's connected
       currentTime = millis();
       if (client.available()) {  // if there's bytes to read from the client,
@@ -46,12 +48,10 @@ void loop() {
             client.println("Connection: close");
             client.println();
             if (header.indexOf("GET /" + secretKey) >= 0) {
-              Serial.println("HODOR!");
-              digitalWrite(LED_BUILTIN, HIGH);
               digitalWrite(DOOR_PIN, HIGH);
+              digitalWrite(LED_BUILTIN, LOW);
               delay(LATCH_TIME);
               digitalWrite(DOOR_PIN, LOW);
-              digitalWrite(LED_BUILTIN, LOW);
             }
             // The HTTP response ends with another blank line
             client.println();
@@ -74,13 +74,39 @@ void loop() {
   }
 }
 
+void keepAliveWiFi() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi connection lost.");
+    Serial.print("Reconnecting to WiFi ..");
+  }
+  while (WiFi.status() != WL_CONNECTED) {
+    WiFi.disconnect();
+    WiFi.reconnect();
+    waitForWiFi(30000);
+  }
+}
+
 void initWiFi() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ..");
-  while (WiFi.status() != WL_CONNECTED) {
+  waitForWiFi(0);
+}
+
+unsigned int wifiTimer;
+
+void waitForWiFi(int connetionTimeout) {
+
+  wifiTimer = millis();
+  while (WiFi.status() != WL_CONNECTED && connetionTimeout != 0 && wifiTimer + connetionTimeout > millis()) {
     Serial.print('.');
-    delay(1000);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(500);
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(500);
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    return;
   }
   Serial.println(" Done!");
   Serial.print("IP: ");
